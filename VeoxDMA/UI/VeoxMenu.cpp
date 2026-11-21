@@ -4,6 +4,7 @@
 #include "ConfigFile.h"
 #include "RobRunReader.h"
 #include "RobRunMemory.h"
+#include "SkinChanger.h"
 #include "DeviceSession.h"
 #include "InputManager.h"
 #include "../Aim/AimController.h"
@@ -159,7 +160,7 @@ bool g_placementApplied = false;
 char g_search[96] = "";
 bool g_readCatalog = false;
 
-const char* kPageNames[] = { "Visuals", "Radar", "Loot Filter", "Aim", "Server", "Misc", "Settings" };
+const char* kPageNames[] = { "Visuals", "Radar", "Loot Filter", "Aim", "Server", "Misc", "Skins", "Settings" };
 constexpr int kPageCount = IM_ARRAYSIZE(kPageNames);
 
 ID3D11ShaderResourceView* g_icon[kPageCount] = {};
@@ -1181,7 +1182,7 @@ void DrawVisuals()
 			SliderIntRow("Max Distance", &ConfigInstance.World.MaxDistance, 0, 2000, "m");
 			SliderIntRow("Min Cash / Value", &ConfigInstance.World.MinValueFilter, 0, 50000, " $");
 			SliderIntRow("Font Size", &ConfigInstance.World.FontSize, 1, 24, "px");
-			ToggleRow("Instant Loot", &ConfigInstance.World.InstantLoot);
+			ToggleRow("Instant Loot", &ConfigInstance.World.InstantLoot, true);
 			EndCard();
 		}
 	}
@@ -2268,6 +2269,113 @@ void DrawMisc()
 	}
 }
 
+void DrawSkins()
+{
+	const SkinChanger::State state = SkinChanger::GetState();
+	auto& skin = ConfigInstance.Skin;
+
+	BeginCard("SKIN CHANGER", kCardW * 2.f + kGap);
+	ToggleRow("Skin Changer", &skin.Enabled, true);
+	if (state.inMatch)
+		Note("Character: %s", state.female ? "Female" : "Male");
+	else
+		Note("Status: %s", state.status.empty() ? "-" : state.status.c_str());
+	Note("Client-side only. Your real item is drawn with the chosen item's assets, so "
+		"other players wearing the same real item change too (on your screen only). "
+		"Choices are saved per male / female character and applied in every match. "
+		"Everything is restored when turned off or when VeoxDMA closes.");
+	EndCard();
+
+	BeginCard("COSMETICS", kCardW * 2.f + kGap);
+	if (!state.inMatch)
+	{
+		Note("Join a match to pick cosmetics.");
+	}
+	else
+	{
+		static std::vector<std::string> labels[SkinChanger::kSlotCount];
+		static std::vector<const char*> items[SkinChanger::kSlotCount];
+		for (int slot = 0; slot < SkinChanger::kSlotCount; ++slot)
+		{
+			const auto& s = state.slots[slot];
+			SectionLabel(SkinChanger::SlotName(slot));
+			if (!s.supported)
+			{
+				Note("%s", s.status.c_str());
+				continue;
+			}
+			const std::string wanted = SkinChanger::Wanted(slot, state.female);
+			labels[slot].clear();
+			items[slot].clear();
+			labels[slot].push_back("Real item (no change)");
+			int selected = 0;
+			for (std::size_t i = 0; i < s.options.size(); ++i)
+			{
+				const std::string& name = i < s.names.size() ? s.names[i] : s.options[i];
+				const bool duplicate = std::count(s.names.begin(), s.names.end(), name) > 1;
+				labels[slot].push_back(duplicate ? name + " (" + s.options[i] + ")" : name);
+				if (!wanted.empty() && _stricmp(s.options[i].c_str(), wanted.c_str()) == 0)
+					selected = static_cast<int>(i) + 1;
+			}
+			for (const auto& l : labels[slot]) items[slot].push_back(l.c_str());
+			if (ComboRow(SkinChanger::SlotName(slot), &selected, items[slot].data(),
+					static_cast<int>(items[slot].size()), 280.f, true))
+				SkinChanger::SetWanted(slot, state.female,
+					selected > 0 ? s.options[selected - 1] : std::string());
+			Note("Real: %s", s.realName.c_str());
+			Note("Status: %s", s.status.empty() ? "-" : s.status.c_str());
+		}
+	}
+	EndCard();
+
+	BeginCard("WEAPON SKINS", kCardW * 2.f + kGap);
+	if (!state.inMatch)
+	{
+		Note("Join a match to pick weapon skins.");
+	}
+	else if (!state.weaponsSupported)
+	{
+		Note("Weapon skin data not found (offsets changed?).");
+	}
+	else
+	{
+		if (!state.heldWeapon.empty())
+			Note("Holding: %s  -  real skin: %s", state.heldWeapon.c_str(), state.heldSkin.c_str());
+		Note("A chosen skin replaces every skin of that weapon, also on other players "
+			"(on your screen only). Switch weapons once if it does not change right away.");
+
+		static std::vector<std::vector<std::string>> labels;
+		static std::vector<std::vector<const char*>> items;
+		labels.resize(state.weapons.size());
+		items.resize(state.weapons.size());
+		for (std::size_t w = 0; w < state.weapons.size(); ++w)
+		{
+			const auto& weapon = state.weapons[w];
+			const std::string wanted = SkinChanger::WantedWeaponSkin(weapon.key);
+			labels[w].clear();
+			items[w].clear();
+			labels[w].push_back("Real skins (no change)");
+			int selected = 0;
+			for (std::size_t i = 0; i < weapon.skins.size(); ++i)
+			{
+				const std::string& name = i < weapon.names.size() ? weapon.names[i] : weapon.skins[i];
+				const bool duplicate = std::count(weapon.names.begin(), weapon.names.end(), name) > 1;
+				labels[w].push_back(duplicate ? name + " (" + weapon.skins[i] + ")" : name);
+				if (!wanted.empty() && _stricmp(weapon.skins[i].c_str(), wanted.c_str()) == 0)
+					selected = static_cast<int>(i) + 1;
+			}
+			for (const auto& l : labels[w]) items[w].push_back(l.c_str());
+			if (ComboRow(weapon.name.c_str(), &selected, items[w].data(),
+					static_cast<int>(items[w].size()), 280.f, true))
+				SkinChanger::SetWantedWeaponSkin(weapon.key,
+					selected > 0 ? weapon.skins[selected - 1] : std::string());
+			if (!wanted.empty())
+				Note("%s", weapon.status.c_str());
+		}
+	}
+	EndCard();
+}
+
 void DrawSettings(bool attached, const std::string& statusText)
 {
 	// Three rows of two cards: overlay/display settings on the left, backdrop,
@@ -2797,7 +2905,8 @@ void Init()
 	g_icon[3] = LoadTextureFromMemory(ragebot, sizeof(ragebot));
 	g_icon[4] = LoadTextureFromMemory(world, sizeof(world));
 	g_icon[5] = LoadTextureFromMemory(misc, sizeof(misc));
-	g_icon[6] = LoadTextureFromMemory(settings, sizeof(settings));
+	g_icon[6] = nullptr;
+	g_icon[7] = LoadTextureFromMemory(settings, sizeof(settings));
 }
 
 void Draw(bool attached, const std::string& statusText)
@@ -2986,7 +3095,8 @@ void Draw(bool attached, const std::string& statusText)
 		case 3: DrawAim(); break;
 		case 4: DrawServer(); break;
 		case 5: DrawMisc(); break;
-		case 6: DrawSettings(attached, statusText); break;
+		case 6: DrawSkins(); break;
+		case 7: DrawSettings(attached, statusText); break;
 		default: break;
 		}
 
