@@ -230,12 +230,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
 			// Only draw game state while attached: during a reattach the reader
 			// is being shut down and the last snapshot is stale.
 			if (g_attached.load(std::memory_order_acquire)) {
+				Radar::Draw();
 				DrawPlayers();
 				DrawBvhDebug();
 				if (!ConfigInstance.Overlay.BattleMode) {
 					DrawWorldEntities();
 					DrawHouseInfo();
-					Radar::Draw();
 					Radar::DrawFullMap();
 				}
 			}

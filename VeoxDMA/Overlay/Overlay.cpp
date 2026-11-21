@@ -593,12 +593,7 @@ int Run(HINSTANCE instance, const wchar_t* title, const wchar_t* windowClass,
 		{
 			DrawFps();
 			if (callbacks.draw) callbacks.draw();
-			OverlayNotify::Draw();
 			DrawDebugOverlay();
-		}
-		else
-		{
-			OverlayNotify::Draw();
 		}
 
 		ImGui::Render();

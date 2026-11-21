@@ -1343,8 +1343,7 @@ void TickRecoilSpread()
     if (cfg.NoRecoil) {
         const std::uintptr_t rotInput = snapshot->playerRotationInput;
         if (rotInput > 0x10000) {
-            const std::uintptr_t fireModel = RobRunMemory::ReadPtr(
-                g_cachedPlayerClient + rr::CharacterClientModel::FireModel);
+            const std::uintptr_t fireModel = RobRunMemory::ReadPtr(g_cachedPlayerClient + rr::CharacterClientModel::FireModel);
             if (fireModel > 0x10000) {
                 struct { std::uint8_t isFiring; std::uint8_t hasShot; std::uint8_t pad[2]; std::int32_t shotIndex; } fire{};
                 RobRunMemory::ReadBytes(fireModel + rr::CharacterFireModel::IsFiring, &fire, sizeof(fire));
@@ -1369,8 +1368,7 @@ void TickRecoilSpread()
                                 if (correction > g_kickBudget) correction = g_kickBudget;
                                 g_kickBudget -= correction;
                                 const float newPitch = pitch + correction;
-                                TargetProcess.Write(rotInput + rr::PlayerRotationInputModel::Pitch,
-                                    newPitch);
+                                TargetProcess.Write(rotInput + rr::PlayerRotationInputModel::Pitch, newPitch);
                                 g_lastPitch = newPitch;
                             } else {
                                 g_lastPitch = pitch;
@@ -1396,8 +1394,7 @@ void TickRecoilSpread()
                 const float factor = std::clamp(1.f - cfg.RecoilStrength, 0.f, 1.f);
                 cur.x *= factor;
                 cur.y *= factor;
-                TargetProcess.Write(recoilModel + rr::RecoilModel::OffsetVec,
-                    reinterpret_cast<void*>(&cur), sizeof(cur));
+                TargetProcess.Write(recoilModel + rr::RecoilModel::OffsetVec, reinterpret_cast<void*>(&cur), sizeof(cur));
             }
         }
     }
@@ -1406,16 +1403,12 @@ void TickRecoilSpread()
     if (cfg.NoSpread) {
         Memory::ScopedScatter scatter(TargetProcess);
         if (scatter.handle) {
-            const std::uintptr_t spreadModel = RobRunMemory::ReadPtr(
-                g_cachedPlayerClient + rr::PlayerClient::FakeSpread);
+            const std::uintptr_t spreadModel = RobRunMemory::ReadPtr(g_cachedPlayerClient + rr::PlayerClient::FakeSpread);
             if (spreadModel > 0x10000) {
                 float zero = 0.f;
-                TargetProcess.AddScatterWriteRequest(scatter,
-                    spreadModel + rr::FakeSpreadModel::Spread, &zero, sizeof(zero));
-                TargetProcess.AddScatterWriteRequest(scatter,
-                    spreadModel + rr::FakeSpreadModel::Air, &zero, sizeof(zero));
-                TargetProcess.AddScatterWriteRequest(scatter,
-                    spreadModel + rr::FakeSpreadModel::Move, &zero, sizeof(zero));
+                TargetProcess.AddScatterWriteRequest(scatter, spreadModel + rr::FakeSpreadModel::Spread, &zero, sizeof(zero));
+                TargetProcess.AddScatterWriteRequest(scatter, spreadModel + rr::FakeSpreadModel::Air, &zero, sizeof(zero));
+                TargetProcess.AddScatterWriteRequest(scatter, spreadModel + rr::FakeSpreadModel::Move, &zero, sizeof(zero));
             }
             TargetProcess.ExecuteScatterWrite(scatter);
         }
